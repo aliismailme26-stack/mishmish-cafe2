@@ -23,7 +23,7 @@
     <div class="container my-3">
         <!-- Header -->
         <div class="text-center mb-3">
-            <h1 class="fw-bold text-amber" style="font-family: serif; color: #d97706;">Mishmish Cafe</h1>
+            <h1 class="fw-bold" style="font-family: serif; color: #d97706;">Mishmish Cafe</h1>
             <p class="text-muted small mb-1">مذاق مختلف .. لكل لحظة ✨</p>
             <div class="badge bg-dark fs-6">طاولة رقم: <span id="table-num">1</span></div>
         </div>
@@ -38,7 +38,7 @@
         <div id="menu-container" class="row g-2">
             <div class="text-center py-5">
                 <div class="spinner-border text-warning" role="status"></div>
-                <p class="mt-2 text-muted">جاري تحميل المنيو...</p>
+                <p class="mt-2 text-muted">جاري تحميل المنيو المباشر...</p>
             </div>
         </div>
 
@@ -69,6 +69,9 @@
         </div>
     </div>
 
+    <!-- Audio Alert Element for Customer -->
+    <audio id="ready-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -94,7 +97,15 @@
         let allProducts = [];
         let activeCat = '';
 
-        // Live Sync Menu from Firebase
+        // Unlock audio context on user interaction
+        document.body.addEventListener('click', function() {
+            const sound = document.getElementById('ready-sound');
+            if (sound) {
+                sound.play().then(() => sound.pause()).catch(() => {});
+            }
+        }, { once: true });
+
+        // Realtime Sync Menu Items from Firebase (Reflects Admin Changes Live)
         db.ref('menu_items').on('value', snapshot => {
             const data = snapshot.val();
             allProducts = [];
@@ -201,7 +212,6 @@
             });
         }
 
-        // Live Order Tracker with Alert Notification
         let lastNotifiedStatus = '';
         function trackOrderStatus(orderId) {
             if (!orderId) return;
@@ -235,10 +245,19 @@
                     </div>
                 `;
 
-                // Sound & Vibration Alert on Mobile when Status changes to "الطلب جاهز"
+                // Play Audio Sound + Vibration on Mobile when Status is "الطلب جاهز"
                 if (order.status === 'الطلب جاهز' && lastNotifiedStatus !== 'الطلب جاهز') {
-                    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
-                    alert('🎉 طلبك جاهز الآن وراجعلك على الطاولة حالاً!');
+                    const sound = document.getElementById('ready-sound');
+                    if (sound) {
+                        sound.currentTime = 0;
+                        sound.play().catch(() => {});
+                    }
+                    if (navigator.vibrate) {
+                        navigator.vibrate([300, 100, 300, 100, 500]);
+                    }
+                    setTimeout(() => {
+                        alert('🎉 طلبك جاهز الآن وراجعلك على الطاولة حالاً!');
+                    }, 200);
                     lastNotifiedStatus = 'الطلب جاهز';
                 }
             });
