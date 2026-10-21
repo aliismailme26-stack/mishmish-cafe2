@@ -4,28 +4,268 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mishmish Cafe - Menu</title>
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #fffbe0; color: #333; }
+        .price-badge { background-color: #d97706; color: white; padding: 5px 12px; border-radius: 20px; font-weight: bold; }
+        .card-menu { border: none; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .card-menu img { height: 130px; object-fit: cover; }
+        .nav-pills .nav-link.active { background-color: #d97706 !important; color: white !important; }
+        .nav-pills .nav-link { color: #555; font-weight: bold; background-color: #fff; border: 1px solid #ddd; font-size: 0.9rem; }
+    </style>
 </head>
 <body>
-    <header class="main-header text-center py-3 bg-dark text-white shadow">
-        <h2 class="fw-bold m-0"><i class="fa-solid fa-cookie-bite text-warning"></i> Mishmish Cafe</h2>
-        <span class="badge bg-warning text-dark mt-1" id="table-badge">طاولة: --</span>
-    </header>
+    <div class="container my-3">
+        <!-- Header -->
+        <div class="text-center mb-3">
+            <h1 class="fw-bold" style="font-family: serif; color: #d97706;">Mishmish Cafe</h1>
+            <p class="text-muted small mb-1">مذاق مختلف .. لكل لحظة ✨</p>
+            <div class="badge bg-dark fs-6">طاولة رقم: <span id="table-num">1</span></div>
+        </div>
 
-    <div class="container my-4">
+        <!-- Live Order Status Tracker Box -->
         <div id="customer-status-container"></div>
-        <ul class="nav nav-pills justify-content-center gap-2 mb-4" id="cat-tabs"></ul>
-        <div class="row g-3" id="products-grid"></div>
+
+        <!-- Categories Tabs -->
+        <ul class="nav nav-pills nav-fill mb-3 gap-1" id="categories-tabs"></ul>
+
+        <!-- Menu Grid -->
+        <div id="menu-container" class="row g-2">
+            <div class="text-center py-5">
+                <div class="spinner-border text-warning" role="status"></div>
+                <p class="mt-2 text-muted">جاري تحميل المنيو المباشر...</p>
+            </div>
+        </div>
+
+        <!-- Cart Floating Button -->
+        <div class="position-fixed bottom-0 end-0 m-3" style="z-index: 1000;">
+            <button class="btn btn-warning btn-lg rounded-circle shadow p-3" data-bs-toggle="offcanvas" data-bs-target="#cartModal">
+                <i class="fa-solid fa-cart-shopping fs-3 text-white"></i>
+                <span id="cart-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+            </button>
+        </div>
+
+        <!-- Cart Offcanvas -->
+        <div class="offcanvas offcanvas-start" id="cartModal">
+            <div class="offcanvas-header bg-dark text-white">
+                <h5 class="offcanvas-title"><i class="fa-solid fa-basket-shopping me-2"></i>سلة الطلبات</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+            </div>
+            <div class="offcanvas-body d-flex flex-column">
+                <div id="cart-items" class="flex-grow-1 overflow-auto"></div>
+                <div class="border-top pt-3">
+                    <div class="d-flex justify-content-between fs-5 fw-bold mb-3">
+                        <span>الإجمالي:</span>
+                        <span id="cart-total">0 ج.م</span>
+                    </div>
+                    <button class="btn btn-warning w-100 py-2 fw-bold text-white fs-5" onclick="sendOrder()"><i class="fa-solid fa-paper-plane me-2"></i> إرسال الطلب للبار</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Audio Sound -->
+    <!-- Audio Alert Element for Customer -->
     <audio id="ready-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyArLZM_hv0uXWzA2YuLaKXWgHfYIN_Loks",
+            authDomain: "mishmish-cafe.firebaseapp.com",
+            databaseURL: "https://mishmish-cafe-default-rtdb.firebaseio.com",
+            projectId: "mishmish-cafe",
+            storageBucket: "mishmish-cafe.firebasestorage.app",
+            messagingSenderId: "643341117574",
+            appId: "1:643341117574:web:eff00a32210732682fc907"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let tableNum = new URLSearchParams(window.location.search).get('table') || 1;
+        document.getElementById('table-num').innerText = tableNum;
+        let cart = [];
+        let currentOrderId = localStorage.getItem('mish_current_order_id') || null;
+        let allProducts = [];
+        let activeCat = '';
+
+        // Unlock audio context on user interaction
+        document.body.addEventListener('click', function() {
+            const sound = document.getElementById('ready-sound');
+            if (sound) {
+                sound.play().then(() => sound.pause()).catch(() => {});
+            }
+        }, { once: true });
+
+        // Realtime Sync Menu Items from Firebase (Reflects Admin Changes Live)
+        db.ref('menu_items').on('value', snapshot => {
+            const data = snapshot.val();
+            allProducts = [];
+            if (data) {
+                Object.keys(data).forEach(key => {
+                    allProducts.push({ id: key, ...data[key] });
+                });
+            }
+            renderCategories();
+            renderMenu();
+        });
+
+        function renderCategories() {
+            const categories = [...new Set(allProducts.map(i => i.cat))];
+            if (categories.length > 0 && (!activeCat || !categories.includes(activeCat))) {
+                activeCat = categories[0];
+            }
+            const tabs = document.getElementById('categories-tabs');
+            tabs.innerHTML = '';
+            categories.forEach(cat => {
+                tabs.innerHTML += `<li class="nav-item"><button class="nav-link w-100 ${cat === activeCat ? 'active' : ''}" onclick="selectCat('${cat}')">${cat}</button></li>`;
+            });
+        }
+
+        function selectCat(cat) {
+            activeCat = cat;
+            renderCategories();
+            renderMenu();
+        }
+
+        function renderMenu() {
+            const container = document.getElementById('menu-container');
+            container.innerHTML = '';
+            const filtered = allProducts.filter(i => i.cat === activeCat);
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center text-muted py-5">لا توجد منتجات في هذا القسم</div>';
+                return;
+            }
+
+            filtered.forEach(item => {
+                container.innerHTML += `
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <div class="card card-menu h-100">
+                            <img src="${item.img || 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=400'}" class="card-img-top">
+                            <div class="card-body p-2 d-flex flex-column justify-content-between">
+                                <h6 class="fw-bold mb-1" style="font-size: 0.95rem;">${item.name}</h6>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <span class="price-badge">${item.price} ج.م</span>
+                                    <button class="btn btn-sm btn-outline-warning rounded-circle fw-bold" onclick="addToCart('${item.name}', ${item.price})">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function addToCart(name, price) {
+            const existing = cart.find(c => c.name === name);
+            if (existing) existing.qty++;
+            else cart.push({ name, price, qty: 1 });
+            updateCart();
+        }
+
+        function updateCart() {
+            const cartItems = document.getElementById('cart-items');
+            cartItems.innerHTML = '';
+            let total = 0, count = 0;
+            cart.forEach(item => {
+                total += item.price * item.qty;
+                count += item.qty;
+                cartItems.innerHTML += `<div class="d-flex justify-content-between border-bottom py-2"><span>${item.name} × ${item.qty}</span><strong>${item.price * item.qty} ج.م</strong></div>`;
+            });
+            document.getElementById('cart-total').innerText = total + ' ج.م';
+            document.getElementById('cart-badge').innerText = count;
+            document.getElementById('cart-badge').classList.toggle('d-none', count === 0);
+        }
+
+        function sendOrder() {
+            if (cart.length === 0) return alert('السلة فارغة!');
+            
+            const newRef = db.ref('orders').push();
+            currentOrderId = newRef.key;
+            localStorage.setItem('mish_current_order_id', currentOrderId);
+
+            const orderData = {
+                table: tableNum,
+                items: cart,
+                total: cart.reduce((a, b) => a + (b.price * b.qty), 0),
+                status: 'قيد الانتظار',
+                time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+                timestamp: Date.now()
+            };
+
+            newRef.set(orderData).then(() => {
+                alert('تم إرسال طلبك بنجاح للبار!');
+                cart = [];
+                updateCart();
+                const cartModal = bootstrap.Offcanvas.getInstance(document.getElementById('cartModal'));
+                if (cartModal) cartModal.hide();
+                
+                trackOrderStatus(currentOrderId);
+            });
+        }
+
+        let lastNotifiedStatus = '';
+        function trackOrderStatus(orderId) {
+            if (!orderId) return;
+
+            db.ref('orders/' + orderId).on('value', snapshot => {
+                const order = snapshot.val();
+                const box = document.getElementById('customer-status-container');
+
+                if (!order) {
+                    box.innerHTML = '';
+                    return;
+                }
+
+                let alertClass = 'alert-warning';
+                let iconHtml = '<i class="fa-solid fa-clock fa-spin me-2"></i>';
+                
+                if (order.status === 'قيد التحضير') {
+                    alertClass = 'alert-info';
+                    iconHtml = '<i class="fa-solid fa-mug-hot fa-bounce me-2"></i>';
+                }
+                if (order.status === 'الطلب جاهز') {
+                    alertClass = 'alert-success border-3';
+                    iconHtml = '<i class="fa-solid fa-circle-check me-2"></i>';
+                }
+
+                box.innerHTML = `
+                    <div class="alert ${alertClass} text-center shadow-sm mb-3">
+                        <h6 class="fw-bold mb-1">${iconHtml} حالة طلبك الحالي (طاولة ${order.table}):</h6>
+                        <span class="fs-5 fw-bold">${order.status}</span>
+                        <div class="small text-muted mt-1">الإجمالي: ${order.total} ج.م | الوقت: ${order.time}</div>
+                    </div>
+                `;
+
+                // Play Audio Sound + Vibration on Mobile when Status is "الطلب جاهز"
+                if (order.status === 'الطلب جاهز' && lastNotifiedStatus !== 'الطلب جاهز') {
+                    const sound = document.getElementById('ready-sound');
+                    if (sound) {
+                        sound.currentTime = 0;
+                        sound.play().catch(() => {});
+                    }
+                    if (navigator.vibrate) {
+                        navigator.vibrate([300, 100, 300, 100, 500]);
+                    }
+                    setTimeout(() => {
+                        alert('🎉 طلبك جاهز الآن وراجعلك على الطاولة حالاً!');
+                    }, 200);
+                    lastNotifiedStatus = 'الطلب جاهز';
+                }
+            });
+        }
+
+        if (currentOrderId) {
+            trackOrderStatus(currentOrderId);
+        }
+    </script>
 </body>
 </html>
