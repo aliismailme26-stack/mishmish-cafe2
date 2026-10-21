@@ -1,0 +1,25 @@
+body {
+    font-family: 'Tajawal', sans-serif;
+    background-color: #fcf8f2;
+    color: #333;
+}
+
+.pos-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    cursor: pointer;
+    transition: transform 0.2s;
+    background-color: #fff;
+}
+
+.pos-card:hover {
+    transform: scale(1.03);
+    border: 2px solid #f26522;
+}
+
+.pos-card img {
+    height: 90px;
+    object-fit: cover;
+    border-radius: 12px 12px 0 0;
+}

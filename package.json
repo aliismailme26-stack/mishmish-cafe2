@@ -1,0 +1,23 @@
+{
+  "name": "mishmish-pos",
+  "version": "1.0.0",
+  "description": "Mishmish Cafe POS System",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis"
+  },
+  "author": "Mishmish Cafe",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.0"
+  },
+  "build": {
+    "appId": "com.mishmish.pos",
+    "productName": "Mishmish POS",
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
